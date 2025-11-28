@@ -1,6 +1,7 @@
-# dnsx
+# 🌐 dnsx
 
 A minimalistic DNS export utility for backing up DNS records from multiple providers to YAML format.
+The idea is to get YAML from all all providers, and then use it as ground truth with Terraform.
 
 ## Features
 
