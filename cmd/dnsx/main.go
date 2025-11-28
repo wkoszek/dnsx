@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/wkoszek/dnsx/internal/exporter"
+	"github.com/wkoszek/dnsx/internal/generator"
 	"github.com/wkoszek/dnsx/internal/output"
 )
 
@@ -28,9 +29,42 @@ func run() error {
 		return nil
 	}
 
-	if os.Args[1] != "export" {
+	switch os.Args[1] {
+	case "export":
+		return runExport()
+	case "gen":
+		return runGen()
+	default:
 		return fmt.Errorf("unknown command: %s", os.Args[1])
 	}
+}
+
+func runGen() error {
+	if len(os.Args) < 3 {
+		printUsage()
+		return fmt.Errorf("gen command requires a subcommand (terraform)")
+	}
+
+	subcommand := os.Args[2]
+	if subcommand != "terraform" {
+		return fmt.Errorf("unknown gen subcommand: %s (available: terraform)", subcommand)
+	}
+
+	genCmd := flag.NewFlagSet("gen terraform", flag.ExitOnError)
+	inputDir := genCmd.String("indir", "yaml", "input directory containing YAML files")
+	genCmd.Parse(os.Args[3:])
+
+	args := genCmd.Args()
+	if len(args) == 0 {
+		printUsage()
+		return fmt.Errorf("gen terraform requires an output directory argument")
+	}
+
+	outputDir := args[0]
+	return generator.GenerateTerraform(*inputDir, outputDir)
+}
+
+func runExport() error {
 
 	exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
 	outdir := exportCmd.String("outdir", "yaml", "output directory for YAML files")
@@ -143,18 +177,29 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  dnsx export <provider> [--outdir <path>]")
+	fmt.Println("  dnsx gen terraform [--indir <path>] <outdir>")
 	fmt.Println()
-	fmt.Println("Providers:")
+	fmt.Println("Commands:")
+	fmt.Println("  export        Export DNS records from providers to YAML")
+	fmt.Println("  gen           Generate infrastructure code from YAML")
+	fmt.Println()
+	fmt.Println("Export Providers:")
 	fmt.Println("  cloudflare    Export from Cloudflare (requires: CLOUDFLARE_API_TOKEN)")
 	fmt.Println("  gandi         Export from Gandi (requires: GANDI_API_KEY)")
 	fmt.Println("  godaddy       Export from GoDaddy (requires: GODADDY_API_KEY, GODADDY_API_SECRET)")
 	fmt.Println("  porkbun       Export from Porkbun (requires: PORKBUN_API_KEY, PORKBUN_SECRET_KEY)")
 	fmt.Println("  all           Export from all configured providers")
 	fmt.Println()
+	fmt.Println("Gen Subcommands:")
+	fmt.Println("  terraform     Generate Terraform/OpenTofu HCL from YAML files")
+	fmt.Println()
 	fmt.Println("Flags:")
-	fmt.Println("  --outdir <path>   Output directory (default: yaml)")
+	fmt.Println("  --outdir <path>   Output directory for export (default: yaml)")
+	fmt.Println("  --indir <path>    Input directory for gen (default: yaml)")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  dnsx export cloudflare")
 	fmt.Println("  dnsx export all --outdir /tmp/dns-backup")
+	fmt.Println("  dnsx gen terraform outdir/")
+	fmt.Println("  dnsx gen terraform --indir yaml/ terraform/")
 }
