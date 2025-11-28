@@ -51,6 +51,9 @@ dnsx export all
 dnsx export cloudflare --outdir /tmp/dns-backup
 dnsx export all --outdir ./backups
 
+# Generate Terraform from YAML
+dnsx gen terraform terraform/
+
 # Show help
 dnsx --help
 ```
