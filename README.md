@@ -1,25 +1,25 @@
-# 🌐 dnsx
+# 🌐 dnsx - Your DNS records deserve a backup too!* 💾
 
 A minimalistic DNS export utility for backing up DNS records from multiple providers to YAML format.
 The idea is to get YAML from all all providers, and then use it as ground truth with Terraform.
 
-## Features
+A fast, minimal DNS export utility that backs up your DNS records from multiple providers to YAML. Because losing DNS records is no fun. 😱
 
-- Export DNS records from:
-  - Cloudflare
-  - Gandi
-  - GoDaddy
-  - Porkbun
-  - send PR for more DNS providers!
-- Export from all configured providers with a single command
-- YAML output format for easy versioning and diffing
-- Environment variable-based configuration (no config files needed)
-- Pagination support for accounts with many domains
-- Clean, idiomatic Go implementation
+## ✨ Features
 
-## Installation
+- 🔄 **Multi-provider support:**
+  - ☁️ Cloudflare
+  - 🦩 Gandi
+  - 🟢 GoDaddy
+  - 🐷 Porkbun
+  - 🤝 PRs welcome for more!
+- 📦 Export all providers with one command
+- 📝 YAML output - easy to read, diff, and version control
+- 🔐 Environment variable config - no config files to leak
+- 📄 Handles pagination for large accounts
+- 🎯 Machine-parseable output for scripting
 
-### From Source
+## 🚀 Quick Start
 
 ```bash
 go install github.com/wkoszek/dnsx/cmd/dnsx@latest
