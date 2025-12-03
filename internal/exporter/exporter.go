@@ -45,6 +45,7 @@ type Exporter interface {
 	Name() string
 	IsConfigured() bool
 	Export(ctx context.Context) ([]DomainResult, error)
+	ListDomains(ctx context.Context) ([]string, error)
 }
 
 func NewMetadata(provider string) map[string]interface{} {

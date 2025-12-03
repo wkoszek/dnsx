@@ -1,9 +1,9 @@
 # 🌐 dnsx - Your DNS records deserve a backup too!* 💾
 
-A minimalistic DNS export utility for backing up DNS records from multiple providers to YAML format.
-The idea is to get YAML from all all providers, and then use it as ground truth with Terraform.
+A minimalistic DNS management utility for backing up and migrating DNS records across multiple providers.
+The idea is to get YAML from all providers, and then use it as ground truth with Terraform.
 
-A fast, minimal DNS export utility that backs up your DNS records from multiple providers to YAML. Because losing DNS records is no fun. 😱
+A fast, minimal DNS utility that backs up your DNS records from multiple providers to YAML. Because losing DNS records is no fun. 😱
 
 ## ✨ Features
 
@@ -14,6 +14,9 @@ A fast, minimal DNS export utility that backs up your DNS records from multiple 
   - 🐷 Porkbun
   - 🤝 PRs welcome for more!
 - 📦 Export all providers with one command
+- 📥 Import domains to Cloudflare (migrate from other providers)
+- 🚚 Move domains between providers with one command
+- 📋 List domains in any provider
 - 📝 YAML output - easy to read, diff, and version control
 - 🔐 Environment variable config - no config files to leak
 - 📄 Handles pagination for large accounts
@@ -51,11 +54,105 @@ dnsx export all
 dnsx export cloudflare --outdir /tmp/dns-backup
 dnsx export all --outdir ./backups
 
+# Import domains to Cloudflare (creates zones)
+dnsx import example.com
+dnsx import domain1.com domain2.com domain3.com
+
 # Generate Terraform from YAML
 dnsx gen terraform terraform/
 
 # Show help
 dnsx --help
+```
+
+## Listing Domains
+
+List all domains in a provider:
+
+```bash
+# List domains in Porkbun
+dnsx ls porkbun
+
+# List domains in Cloudflare
+dnsx ls cloudflare
+
+# List domains in Gandi
+dnsx ls gandi
+
+# With 1Password
+op run --env-file=.env.1password -- dnsx ls porkbun
+```
+
+## Moving Domains Between Providers
+
+The `mv` command migrates a domain from one provider to another. It creates the zone in the destination provider and updates nameservers at the source registrar:
+
+```bash
+# Move a domain from Porkbun to Cloudflare
+dnsx mv porkbun/example.com cloudflare/
+
+# Move a domain from Gandi to Cloudflare
+dnsx mv gandi/example.com cloudflare/
+
+# With 1Password
+op run --env-file=.env.1password -- dnsx mv porkbun/example.com cloudflare/
+```
+
+This will:
+1. Create a new zone in Cloudflare for the domain
+2. Get the assigned Cloudflare nameservers
+3. Update nameservers at the source registrar (Porkbun or Gandi)
+4. Print YAML for adding to your configuration
+
+## Setting Nameservers at Registrar
+
+The `set ns` command updates nameservers at your domain registrar (supports Gandi and Porkbun):
+
+```bash
+# Set nameservers for a domain at Gandi
+dnsx set ns freebsd.io adam.ns.cloudflare.com bella.ns.cloudflare.com
+
+# Set nameservers at Porkbun
+dnsx set ns --registrar porkbun freebsd.io adam.ns.cloudflare.com bella.ns.cloudflare.com
+
+# With 1Password
+op run --env-file=.env.1password -- dnsx set ns freebsd.io adam.ns.cloudflare.com bella.ns.cloudflare.com
+```
+
+This is useful when migrating to Cloudflare - first add the domain in Cloudflare's dashboard, get the assigned nameservers, then use this command to point your domain to them.
+
+## Importing Domains to Cloudflare
+
+The `import` command creates new zones in Cloudflare for domains currently hosted elsewhere:
+
+```bash
+# Import a single domain
+dnsx import freebsd.io
+
+# Import multiple domains at once
+dnsx import freebsd.io lnkr.xyz example.com
+
+# With 1Password
+op run --env-file=.env.1password -- dnsx import freebsd.io lnkr.xyz
+```
+
+This will:
+1. Create a new zone in Cloudflare for each domain
+2. Enable `jump_start` to auto-scan existing DNS records
+3. Return the Cloudflare nameservers you need to set at your registrar
+
+Example output:
+```
+✓ freebsd.io created
+  Zone ID: abc123def456
+  Nameservers:
+    - adam.ns.cloudflare.com
+    - bella.ns.cloudflare.com
+
+Next steps:
+  1. Update nameservers at your registrar to the ones shown above
+  2. Wait for DNS propagation (up to 24-48 hours)
+  3. Run 'dnsx export cloudflare' to sync YAML files
 ```
 
 ## Configuration
@@ -188,12 +285,20 @@ dnsx/
 ├── cmd/dnsx/           # CLI entry point
 │   └── main.go
 ├── internal/
-│   ├── exporter/       # Provider implementations
+│   ├── exporter/       # Export from providers
 │   │   ├── exporter.go
 │   │   ├── cloudflare.go
 │   │   ├── gandi.go
 │   │   ├── godaddy.go
 │   │   └── porkbun.go
+│   ├── importer/       # Import to providers
+│   │   └── cloudflare.go
+│   ├── registrar/      # Registrar operations (set NS)
+│   │   ├── registrar.go
+│   │   ├── gandi.go
+│   │   └── porkbun.go
+│   ├── generator/      # Terraform generation
+│   │   └── terraform.go
 │   └── output/         # YAML output handling
 │       └── yaml.go
 ├── go.mod
@@ -246,14 +351,25 @@ dnsx export cloudflare --outdir current
 diff -ur previous/ current/
 ```
 
-### Migrate Between Providers
+### Migrate Domains to Cloudflare
 
 ```bash
-# Export from Cloudflare
-dnsx export cloudflare --outdir migration/
+# Option 1: One-command migration (recommended)
+# Moves domain from Porkbun to Cloudflare, updates NS automatically
+dnsx mv porkbun/freebsd.io cloudflare/
 
-# Edit the YAML files as needed
-# Import to new provider using their API or web interface
+# Option 2: Manual step-by-step migration
+# 1. Import domain to Cloudflare (creates zone, shows assigned nameservers)
+dnsx import freebsd.io
+
+# 2. Update nameservers at your registrar via API
+dnsx set ns --registrar porkbun freebsd.io adam.ns.cloudflare.com bella.ns.cloudflare.com
+
+# 3. Wait for propagation, then export from Cloudflare
+dnsx export cloudflare --outdir yaml/
+
+# 4. Generate Terraform and apply
+dnsx gen terraform terraform/
 ```
 
 ## Security Notes

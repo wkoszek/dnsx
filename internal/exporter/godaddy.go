@@ -35,6 +35,18 @@ func (e *GoDaddyExporter) IsConfigured() bool {
 	return e.apiKey != "" && e.apiSecret != ""
 }
 
+func (e *GoDaddyExporter) ListDomains(ctx context.Context) ([]string, error) {
+	domainInfos, err := e.getAllDomains(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var domains []string
+	for _, d := range domainInfos {
+		domains = append(domains, d.Domain)
+	}
+	return domains, nil
+}
+
 func (e *GoDaddyExporter) Export(ctx context.Context) ([]DomainResult, error) {
 	domainInfos, err := e.getAllDomains(ctx)
 	if err != nil {

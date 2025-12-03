@@ -45,6 +45,18 @@ func (e *CloudflareExporter) IsConfigured() bool {
 	return e.apiToken != ""
 }
 
+func (e *CloudflareExporter) ListDomains(ctx context.Context) ([]string, error) {
+	zones, err := e.getZones(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var domains []string
+	for _, z := range zones {
+		domains = append(domains, z.Name)
+	}
+	return domains, nil
+}
+
 func (e *CloudflareExporter) Export(ctx context.Context) ([]DomainResult, error) {
 	zones, err := e.getZones(ctx)
 	if err != nil {

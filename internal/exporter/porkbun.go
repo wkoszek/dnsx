@@ -36,6 +36,10 @@ func (e *PorkbunExporter) IsConfigured() bool {
 	return e.apiKey != "" && e.secretKey != ""
 }
 
+func (e *PorkbunExporter) ListDomains(ctx context.Context) ([]string, error) {
+	return e.getAllDomains(ctx)
+}
+
 func (e *PorkbunExporter) Export(ctx context.Context) ([]DomainResult, error) {
 	domains, err := e.getAllDomains(ctx)
 	if err != nil {

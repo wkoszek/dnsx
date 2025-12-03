@@ -290,3 +290,52 @@ func GenerateTerraform(inputDir, outputDir string) error {
 	fmt.Printf("\nGenerated %d/%d Terraform files in %s\n", generated, len(yamlFiles), outputDir)
 	return nil
 }
+
+// GenerateImports reads YAML files from inputDir and outputs import commands.
+func GenerateImports(inputDir string) error {
+	// Check if input directory exists
+	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
+		return fmt.Errorf("input directory not found: %s", inputDir)
+	}
+
+	// Find all YAML files
+	pattern := filepath.Join(inputDir, "*.yaml")
+	yamlFiles, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("glob yaml files: %w", err)
+	}
+
+	if len(yamlFiles) == 0 {
+		return fmt.Errorf("no YAML files found in %s", inputDir)
+	}
+
+	for _, yamlFile := range yamlFiles {
+		data, err := os.ReadFile(yamlFile)
+		if err != nil {
+			continue
+		}
+
+		var domainData exporter.DomainData
+		if err := yaml.Unmarshal(data, &domainData); err != nil {
+			continue
+		}
+
+		provider := "unknown"
+		if p, ok := domainData.Metadata["provider"].(string); ok {
+			provider = p
+		}
+
+		if provider != "cloudflare" {
+			continue
+		}
+
+		if domainData.ZoneID == "" {
+			continue
+		}
+
+		resourceName := sanitizeResourceName(domainData.Domain)
+		fmt.Printf("tofu import cloudflare_zone.%s %s\n", resourceName, domainData.ZoneID)
+	}
+
+	return nil
+}
