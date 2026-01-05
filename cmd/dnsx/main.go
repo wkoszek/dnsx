@@ -335,15 +335,18 @@ func runSetNS() error {
 	switch *registrarName {
 	case "gandi":
 		reg = registrar.NewGandiRegistrar()
+	case "godaddy":
+		reg = registrar.NewGoDaddyRegistrar()
 	case "porkbun":
 		reg = registrar.NewPorkbunRegistrar()
 	default:
-		return fmt.Errorf("unknown registrar: %s (available: gandi, porkbun)", *registrarName)
+		return fmt.Errorf("unknown registrar: %s (available: gandi, godaddy, porkbun)", *registrarName)
 	}
 
 	if !reg.IsConfigured() {
 		envVars := map[string]string{
 			"gandi":   "GANDI_API_KEY",
+			"godaddy": "GODADDY_API_KEY, GODADDY_API_SECRET",
 			"porkbun": "PORKBUN_API_KEY, PORKBUN_SECRET_KEY",
 		}
 		return fmt.Errorf("%s not configured (set %s)", reg.Name(), envVars[reg.Name()])
