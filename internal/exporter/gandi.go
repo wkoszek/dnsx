@@ -33,7 +33,7 @@ func (e *GandiExporter) IsConfigured() bool {
 	return e.apiKey != ""
 }
 
-func (e *GandiExporter) ListDomains(ctx context.Context) ([]string, error) {
+func (e *GandiExporter) ListDomains(ctx context.Context, opts ListOptions) ([]string, error) {
 	domainInfos, err := e.getAllDomains(ctx)
 	if err != nil {
 		return nil, err

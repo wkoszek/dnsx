@@ -138,12 +138,27 @@ func sanitizeDomainName(domain string) string {
 }
 
 func runLs() error {
+	lsCmd := flag.NewFlagSet("ls", flag.ExitOnError)
+	includeCancelled := lsCmd.Bool("include-cancelled", false, "include cancelled/expired domains (GoDaddy only)")
+
 	if len(os.Args) < 3 {
 		printUsage()
 		return fmt.Errorf("ls command requires a provider argument")
 	}
 
+	lsCmd.Parse(os.Args[3:])
 	provider := os.Args[2]
+
+	// Handle case where flag comes before provider
+	if strings.HasPrefix(provider, "-") {
+		lsCmd.Parse(os.Args[2:])
+		args := lsCmd.Args()
+		if len(args) == 0 {
+			printUsage()
+			return fmt.Errorf("ls command requires a provider argument")
+		}
+		provider = args[0]
+	}
 
 	exporters := map[string]exporter.Exporter{
 		"cloudflare": exporter.NewCloudflareExporter(),
@@ -161,8 +176,12 @@ func runLs() error {
 		return fmt.Errorf("%s not configured (missing environment variables)", provider)
 	}
 
+	opts := exporter.ListOptions{
+		IncludeCancelled: *includeCancelled,
+	}
+
 	ctx := context.Background()
-	domains, err := exp.ListDomains(ctx)
+	domains, err := exp.ListDomains(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("list domains: %w", err)
 	}
@@ -538,7 +557,7 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  dnsx export <provider> [--outdir <path>]")
 	fmt.Println("  dnsx import [--to cloudflare] <domain> [domain...]")
-	fmt.Println("  dnsx ls <provider>")
+	fmt.Println("  dnsx ls <provider> [--include-cancelled]")
 	fmt.Println("  dnsx mv <provider>/<domain> <provider>/")
 	fmt.Println("  dnsx set ns [--registrar gandi] <domain> <ns1> <ns2> [ns3...]")
 	fmt.Println("  dnsx gen terraform [--indir <path>] <outdir>")
@@ -574,6 +593,7 @@ func printUsage() {
 	fmt.Println("  --to <provider>       Target provider for import (default: cloudflare)")
 	fmt.Println("  --registrar <name>    Registrar for set ns (default: gandi)")
 	fmt.Println("  --jump-start=false    Disable auto-scanning existing DNS records")
+	fmt.Println("  --include-cancelled   Include cancelled/expired domains in ls (GoDaddy only)")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  dnsx export cloudflare")

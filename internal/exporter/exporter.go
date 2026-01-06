@@ -41,11 +41,15 @@ type DomainResult struct {
 	Data    *DomainData
 }
 
+type ListOptions struct {
+	IncludeCancelled bool // Include cancelled/expired domains (GoDaddy only)
+}
+
 type Exporter interface {
 	Name() string
 	IsConfigured() bool
 	Export(ctx context.Context) ([]DomainResult, error)
-	ListDomains(ctx context.Context) ([]string, error)
+	ListDomains(ctx context.Context, opts ListOptions) ([]string, error)
 }
 
 func NewMetadata(provider string) map[string]interface{} {

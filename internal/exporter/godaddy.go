@@ -35,13 +35,17 @@ func (e *GoDaddyExporter) IsConfigured() bool {
 	return e.apiKey != "" && e.apiSecret != ""
 }
 
-func (e *GoDaddyExporter) ListDomains(ctx context.Context) ([]string, error) {
+func (e *GoDaddyExporter) ListDomains(ctx context.Context, opts ListOptions) ([]string, error) {
 	domainInfos, err := e.getAllDomains(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var domains []string
 	for _, d := range domainInfos {
+		// Skip cancelled domains unless explicitly requested
+		if !opts.IncludeCancelled && d.Status != "ACTIVE" {
+			continue
+		}
 		domains = append(domains, d.Domain)
 	}
 	return domains, nil
