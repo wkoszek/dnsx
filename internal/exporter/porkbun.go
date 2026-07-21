@@ -32,6 +32,69 @@ func (e *PorkbunExporter) Name() string {
 	return "porkbun"
 }
 
+// Porkbun rate-limits aggressively; bulk exports get sporadic 429/5xx.
+const (
+	pbMaxAttempts  = 4
+	pbInitialDelay = 1 * time.Second
+	pbRequestGap   = 250 * time.Millisecond
+)
+
+// postJSON POSTs the API credentials to url and returns the response body,
+// retrying with exponential backoff on 429 and 5xx.
+func (e *PorkbunExporter) postJSON(ctx context.Context, url string) ([]byte, error) {
+	payload := map[string]string{
+		"apikey":       e.apiKey,
+		"secretapikey": e.secretKey,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	delay := pbInitialDelay
+	var lastErr error
+	for attempt := 1; attempt <= pbMaxAttempts; attempt++ {
+		if attempt > 1 {
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			delay *= 2
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := e.client.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("API returned status %d", resp.StatusCode)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+		}
+
+		return respBody, nil
+	}
+	return nil, fmt.Errorf("%w (after %d attempts)", lastErr, pbMaxAttempts)
+}
+
 func (e *PorkbunExporter) IsConfigured() bool {
 	return e.apiKey != "" && e.secretKey != ""
 }
@@ -47,7 +110,14 @@ func (e *PorkbunExporter) Export(ctx context.Context) ([]DomainResult, error) {
 	}
 
 	var results []DomainResult
-	for _, domain := range domains {
+	for i, domain := range domains {
+		if i > 0 {
+			select {
+			case <-time.After(pbRequestGap):
+			case <-ctx.Done():
+				return results, ctx.Err()
+			}
+		}
 		records, err := e.getDNSRecords(ctx, domain)
 		if err != nil {
 			results = append(results, DomainResult{
@@ -95,36 +165,9 @@ type pbRecord struct {
 }
 
 func (e *PorkbunExporter) getAllDomains(ctx context.Context) ([]string, error) {
-	payload := map[string]string{
-		"apikey":       e.apiKey,
-		"secretapikey": e.secretKey,
-	}
-
-	body, err := json.Marshal(payload)
+	respBody, err := e.postJSON(ctx, "https://api.porkbun.com/api/json/v3/domain/listAll")
 	if err != nil {
 		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST",
-		"https://api.porkbun.com/api/json/v3/domain/listAll", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := e.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 
 	var domainResp pbDomainResponse
@@ -145,37 +188,10 @@ func (e *PorkbunExporter) getAllDomains(ctx context.Context) ([]string, error) {
 }
 
 func (e *PorkbunExporter) getDNSRecords(ctx context.Context, domain string) ([]pbRecord, error) {
-	payload := map[string]string{
-		"apikey":       e.apiKey,
-		"secretapikey": e.secretKey,
-	}
-
-	body, err := json.Marshal(payload)
+	respBody, err := e.postJSON(ctx,
+		fmt.Sprintf("https://api.porkbun.com/api/json/v3/dns/retrieve/%s", domain))
 	if err != nil {
 		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST",
-		fmt.Sprintf("https://api.porkbun.com/api/json/v3/dns/retrieve/%s", domain),
-		bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := e.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 
 	var recordResp pbRecordResponse
